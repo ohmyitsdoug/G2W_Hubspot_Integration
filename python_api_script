@@ -1,0 +1,64 @@
+import requests, json
+
+# ------------------------GOTOWEBINAR INTEGRATION----------------------
+
+get_webinars_url = 'https://api.getgo.com/G2W/rest/organizers/xxxxxxxxxxxxxxxxxxx/historicalWebinars'
+hubspot_api_key = 'XXXXXXXXXXXXXXXXXXX'
+id_list = []
+
+headers = {'Accept': 'application/json',
+    'Authorization': 'OAuth oauth_token=XXXXXXXXXXXXXXXXXXX',
+}
+
+params = (('fromTime', '2000-01-01T10:00:00Z'),
+        ('toTime', '2017-11-29T10:00:00Z'),
+)
+
+r = requests.get(get_webinars_url, headers=headers, params=params) #gets a list of historical webinars
+data=r.json()
+
+#for each historical webinar in their Go2Webinar Account
+for node in data: id_list.append(node['webinarKey'])
+
+#for each ID in the list of webinar IDs
+for id in id_list:
+    attendees_url = 'https://api.getgo.com/G2W/rest/organizers/xxxxxxxxxxxxxxxxxxx/webinars/{}/attendees'.format(id)
+    webinar_url = 'https://api.getgo.com/G2W/rest//organizers/xxxxxxxxxxxxxxxxxxx/webinars/{}'.format(id)
+    g2w_req = requests.get(webinar_url, headers=headers)
+    g2w_data = g2w_req.json()
+    req = requests.get(attendees_url, headers=headers)
+    webinar_data = req.json()
+    print(id)
+    for contact in webinar_data: #for each contact that attended the webinar
+        contact_email = contact['email'].lower()
+        contact_firstName = contact['firstName'].capitalize()
+        contact_lastName = contact['lastName'].capitalize()
+        webinar_name = g2w_data['subject']
+        #-----------------HUBSPOT-------------------
+        hubspot_prop = {"properties": [
+            {
+                "property": "email",
+                "value": contact_email
+            },
+            {
+                "property": "firstname",
+                "value": contact_firstName
+            },
+            {
+                "property": "lastname",
+                "value": contact_lastName
+            },
+            {
+                "property": "attended_webinars",
+                "value": webinar_name
+            },
+            {
+                "property": "hubspot_owner_id",
+                "value": "30667448"
+            }
+        ]
+        }
+
+        requests.post('https://api.hubapi.com/contacts/v1/contact/createOrUpdate/email/{}?hapikey={}'.format(contact_email,hubspot_api_key),
+                  data=json.dumps(hubspot_prop))
+        print("Created/updated Contact -- " + contact_firstName + " " + contact_lastName + " - " + contact_email + ": " + webinar_name)
